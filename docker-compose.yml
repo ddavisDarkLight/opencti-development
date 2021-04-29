@@ -1,0 +1,157 @@
+version: '3'
+services:
+  redis:
+    image: redis:6.2.1
+    restart: always
+    volumes:
+      - redisdata:/data
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+    restart: always
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+  minio:
+    image: minio/minio:RELEASE.2021-03-26T00-00-41Z
+    volumes:
+      - s3data:/data
+    ports:
+      - "9000:9000"
+    environment:
+      MINIO_ACCESS_KEY: yoshida
+      MINIO_SECRET_KEY: torajiro
+    command: server /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: always
+  rabbitmq:
+    image: rabbitmq:3.8-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - amqpdata:/var/lib/rabbitmq
+    restart: always
+  opencti:
+    image: opencti/platform:4.3.4
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8096
+      - APP__PORT=8080
+      - APP__ADMIN__EMAIL=admin@opencti.io
+      - APP__ADMIN__PASSWORD=opencti
+      - APP__ADMIN__TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - APP__LOGS_LEVEL=error
+      - APP__LOGS=./logs
+      - APP__REACTIVE=true
+      - REDIS__HOSTNAME=redis
+      - REDIS__PORT=6379
+      - ELASTICSEARCH__URL=http://elasticsearch:9200
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY=yoshida
+      - MINIO__SECRET_KEY=torajiro
+      - RABBITMQ__HOSTNAME=rabbitmq
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__PORT_MANAGEMENT=15672
+      - RABBITMQ__MANAGEMENT_SSL=false
+      - RABBITMQ__USERNAME=guest
+      - RABBITMQ__PASSWORD=guest
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - elasticsearch
+      - minio
+      - rabbitmq
+    restart: always
+  worker:
+    image: opencti/worker:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - WORKER_LOG_LEVEL=info
+    depends_on:
+      - opencti
+    deploy:
+      mode: replicated
+      replicas: 3
+    restart: always
+  connector-history:
+    image: opencti/connector-history:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - CONNECTOR_ID=10631afc-da01-4084-90a6-80d4df1f442b
+      - CONNECTOR_TYPE=STREAM
+      - CONNECTOR_NAME=History
+      - CONNECTOR_SCOPE=history
+      - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_LOG_LEVEL=info
+    restart: always
+  connector-export-file-stix:
+    image: opencti/connector-export-file-stix:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - CONNECTOR_ID=98a17697-ebd8-4c65-8339-058d69a33b36
+      - CONNECTOR_TYPE=INTERNAL_EXPORT_FILE
+      - CONNECTOR_NAME=ExportFileStix2
+      - CONNECTOR_SCOPE=application/json
+      - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_LOG_LEVEL=info
+    restart: always
+  connector-export-file-csv:
+    image: opencti/connector-export-file-csv:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - CONNECTOR_ID=e08019bb-5471-4741-86c6-d2441fa3f297
+      - CONNECTOR_TYPE=INTERNAL_EXPORT_FILE
+      - CONNECTOR_NAME=ExportFileCsv
+      - CONNECTOR_SCOPE=text/csv
+      - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_LOG_LEVEL=info
+    restart: always
+  connector-import-file-stix:
+    image: opencti/connector-import-file-stix:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - CONNECTOR_ID=89756460-3505-422f-958a-2e0c6c9276ab
+      - CONNECTOR_TYPE=INTERNAL_IMPORT_FILE
+      - CONNECTOR_NAME=ImportFileStix
+      - CONNECTOR_SCOPE=application/json,text/xml
+      - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_LOG_LEVEL=info
+    restart: always
+  connector-import-file-pdf-observables:
+    image: opencti/connector-import-file-pdf-observables:4.3.4
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=0928d607-2abe-4b59-8c92-1ec9b565f3a7
+      - CONNECTOR_ID=3a7ef760-411a-46a7-b001-e1a97da71a03
+      - CONNECTOR_TYPE=INTERNAL_IMPORT_FILE
+      - CONNECTOR_NAME=ImportFilePdfObservables
+      - CONNECTOR_SCOPE=application/pdf
+      - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_LOG_LEVEL=info
+      - PDF_OBSERVABLES_CREATE_INDICATOR=False
+    restart: always
+volumes:
+  esdata:
+  s3data:
+  redisdata:
+  amqpdata:
