@@ -29,8 +29,8 @@ services:
     ports:
       - "9000:9000"
     environment:
-      MINIO_ACCESS_KEY: ChangeMeAccess
-      MINIO_SECRET_KEY: ChangeMeKey
+      MINIO_ACCESS_KEY: yoshida
+      MINIO_SECRET_KEY: torajiro
     command: server /data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
